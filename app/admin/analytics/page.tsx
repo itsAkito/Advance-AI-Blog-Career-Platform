@@ -1,0 +1,248 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import AdminSideNav from "@/components/AdminSideNav";
+import AdminTopNav from "@/components/AdminTopNav";
+import { useAuth } from "@/context/AuthContext";
+import { redirect } from "next/navigation";
+
+export default function AnalyticsPage() {
+  const { user, isAdmin } = useAuth();
+
+  useEffect(() => {
+    if (!user) redirect("/auth");
+    if (user && !isAdmin) redirect("/dashboard");
+  }, [user, isAdmin]);
+  const [timeRange, setTimeRange] = useState("30d");
+  const [platformStats, setPlatformStats] = useState({
+    totalViews: 0,
+    totalPosts: 0,
+    aiGenerations: 0,
+    avgEngagement: 0,
+  });
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const postsRes = await fetch("/api/posts?limit=100");
+        const postsData = postsRes.ok ? await postsRes.json() : {};
+
+        const allPosts = postsData.posts || [];
+        const totalViews = allPosts.reduce((sum: number, p: any) => sum + (p.views || 0), 0);
+        const totalLikes = allPosts.reduce((sum: number, p: any) => sum + (p.likes_count || 0), 0);
+        const aiPosts = allPosts.filter((p: any) => p.ai_generated).length;
+        const avgEngagement = allPosts.length > 0 ? Math.round((totalLikes / Math.max(totalViews, 1)) * 100) : 0;
+
+        setPlatformStats({
+          totalViews,
+          totalPosts: allPosts.length,
+          aiGenerations: aiPosts,
+          avgEngagement,
+        });
+      } catch (err) {
+        console.error("Failed to fetch analytics:", err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // Simulated growth data
+  const monthlyGrowth = [
+    { month: "Jan", users: 120, posts: 340, ai: 89 },
+    { month: "Feb", users: 145, posts: 420, ai: 134 },
+    { month: "Mar", users: 180, posts: 510, ai: 167 },
+    { month: "Apr", users: 220, posts: 580, ai: 210 },
+    { month: "May", users: 310, posts: 690, ai: 298 },
+    { month: "Jun", users: 380, posts: 820, ai: 356 },
+  ];
+  const maxPosts = Math.max(...monthlyGrowth.map((m) => m.posts));
+
+  const careerStats = [
+    { track: "AI & Machine Learning", active: 342, completion: 78 },
+    { track: "Career Strategy", active: 256, completion: 65 },
+    { track: "Editorial Craft", active: 198, completion: 82 },
+    { track: "Industry Analysis", active: 167, completion: 71 },
+    { track: "Data Science", active: 134, completion: 59 },
+  ];
+
+  const aiUsageBreakdown = [
+    { type: "Content Generation", count: 4520, pct: 42 },
+    { type: "Title Suggestions", count: 2340, pct: 22 },
+    { type: "Tone Analysis", count: 1890, pct: 18 },
+    { type: "SEO Optimization", count: 1120, pct: 10 },
+    { type: "Summarization", count: 860, pct: 8 },
+  ];
+
+  const topPerforming = [
+    { title: "The Future of AI in Editorial", views: "12.4K", engagement: 94, author: "Julian Sterling" },
+    { title: "Career Pivots in the AI Era", views: "9.8K", engagement: 87, author: "Elena Vance" },
+    { title: "Building Your AI Portfolio", views: "8.2K", engagement: 82, author: "Dr. Marcus Thorne" },
+    { title: "Prompt Engineering Mastery", views: "7.5K", engagement: 79, author: "Sarah Chen" },
+  ];
+
+  return (
+    <div className="dark min-h-screen bg-background text-on-background font-body">
+      <AdminSideNav activePage="analytics" />
+      <AdminTopNav activePage="analytics" />
+
+      <main className="md:ml-64 pt-20 min-h-screen p-8">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-6">
+          <div>
+            <h2 className="text-5xl font-extrabold font-headline tracking-tighter text-white mb-2">
+              Platform <span className="text-primary italic">Analytics</span>
+            </h2>
+            <p className="text-on-surface-variant text-sm">Growth metrics, AI usage, and content performance.</p>
+          </div>
+          <div className="flex gap-2 bg-surface-container-high rounded-lg p-1">
+            {["7d", "30d", "90d", "1y"].map((r) => (
+              <button
+                key={r}
+                onClick={() => setTimeRange(r)}
+                className={`px-4 py-2 rounded text-xs font-bold uppercase tracking-wider transition-all ${
+                  timeRange === r ? "bg-primary text-on-primary" : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: "Total Views", value: platformStats.totalViews.toLocaleString(), icon: "visibility", change: "+18%", color: "text-primary" },
+            { label: "Published Posts", value: platformStats.totalPosts.toLocaleString(), icon: "article", change: "+12%", color: "text-secondary" },
+            { label: "AI Generations", value: platformStats.aiGenerations.toLocaleString(), icon: "auto_awesome", change: "+34%", color: "text-tertiary" },
+            { label: "Avg Engagement", value: `${platformStats.avgEngagement}%`, icon: "trending_up", change: "+5%", color: "text-green-400" },
+          ].map((s) => (
+            <div key={s.label} className="glass-panel rounded-xl p-6">
+              <div className="flex items-center justify-between mb-3">
+                <span className={`material-symbols-outlined ${s.color}`}>{s.icon}</span>
+                <span className="text-xs font-bold text-green-400">{s.change}</span>
+              </div>
+              <span className="text-3xl font-extrabold font-headline block">{s.value}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">{s.label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          {/* Growth Chart */}
+          <div className="lg:col-span-2 glass-panel rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold font-headline">Platform Growth</h3>
+              <div className="flex gap-4">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  <span className="text-[10px] text-on-surface-variant">Users</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-secondary"></div>
+                  <span className="text-[10px] text-on-surface-variant">Posts</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-tertiary"></div>
+                  <span className="text-[10px] text-on-surface-variant">AI Usage</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-end gap-3 h-48">
+              {monthlyGrowth.map((m) => (
+                <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="w-full flex items-end gap-0.5 h-40">
+                    <div
+                      className="flex-1 bg-primary/60 rounded-t transition-all"
+                      style={{ height: `${(m.users / maxPosts) * 100}%` }}
+                    ></div>
+                    <div
+                      className="flex-1 bg-secondary/60 rounded-t transition-all"
+                      style={{ height: `${(m.posts / maxPosts) * 100}%` }}
+                    ></div>
+                    <div
+                      className="flex-1 bg-tertiary/60 rounded-t transition-all"
+                      style={{ height: `${(m.ai / maxPosts) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-[10px] text-on-surface-variant">{m.month}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Usage Breakdown */}
+          <div className="glass-panel rounded-xl p-6">
+            <h3 className="text-lg font-bold font-headline mb-6">AI Usage Pulse</h3>
+            <div className="space-y-4">
+              {aiUsageBreakdown.map((item) => (
+                <div key={item.type}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium">{item.type}</span>
+                    <span className="text-[10px] text-on-surface-variant">{item.count.toLocaleString()}</span>
+                  </div>
+                  <div className="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary to-tertiary rounded-full transition-all"
+                      style={{ width: `${item.pct}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Career Track Velocity */}
+          <div className="glass-panel rounded-xl p-6">
+            <h3 className="text-lg font-bold font-headline mb-6">Career Track Velocity</h3>
+            <div className="space-y-4">
+              {careerStats.map((c) => (
+                <div key={c.track} className="flex items-center gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold truncate">{c.track}</span>
+                      <span className="text-[10px] text-on-surface-variant">{c.active} users</span>
+                    </div>
+                    <div className="h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all"
+                        style={{ width: `${c.completion}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-primary w-10 text-right">{c.completion}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Top Performing Content */}
+          <div className="glass-panel rounded-xl overflow-hidden">
+            <div className="p-6 border-b border-outline-variant/10">
+              <h3 className="text-lg font-bold font-headline">Top Performing Content</h3>
+            </div>
+            <div className="divide-y divide-outline-variant/5">
+              {topPerforming.map((post, i) => (
+                <div key={post.title} className="flex items-center gap-4 p-4 hover:bg-surface-container-low/50 transition-colors">
+                  <span className="text-2xl font-extrabold font-headline text-on-surface-variant/30 w-8">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate">{post.title}</p>
+                    <p className="text-[10px] text-on-surface-variant">{post.author} • {post.views} views</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-12 h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
+                      <div className="h-full bg-green-400 rounded-full" style={{ width: `${post.engagement}%` }}></div>
+                    </div>
+                    <span className="text-[10px] font-bold text-green-400">{post.engagement}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
