@@ -51,11 +51,13 @@ interface ResumeData {
   address: string;
   location: string;
   linkedin: string;
+  website: string;
   summary: string;
   skills: string[];
   experience: ExperienceItem[];
   education: EducationItem[];
   certifications: string[];
+  photoUrl: string;
 }
 
 const STEPS = [
@@ -67,7 +69,18 @@ const STEPS = [
   { label: "Finalize", icon: FileText },
 ];
 
-const TEMPLATES = ["Classic", "Modern", "Minimal", "Executive"];
+const TEMPLATES = ["Classic", "Modern", "Minimal", "Executive", "Gradient", "Compact"];
+
+const COLOR_THEMES = [
+  { id: "blue",    name: "Ocean",     accent: "#003466", bg: "#ffffff", text: "#191c1e", secondary: "#1a4b84" },
+  { id: "dark",    name: "Night",     accent: "#38bdf8", bg: "#0f172a", text: "#e2e8f0", secondary: "#0284c7" },
+  { id: "forest", name: "Forest",    accent: "#16a34a", bg: "#f0fdf4", text: "#14532d", secondary: "#15803d" },
+  { id: "rose",   name: "Rose",      accent: "#be123c", bg: "#fff1f2", text: "#4c0519", secondary: "#9f1239" },
+  { id: "purple", name: "Violet",    accent: "#7c3aed", bg: "#faf5ff", text: "#2e1065", secondary: "#6d28d9" },
+  { id: "slate",  name: "Slate",     accent: "#475569", bg: "#f8fafc", text: "#0f172a", secondary: "#334155" },
+  { id: "amber",  name: "Amber",     accent: "#d97706", bg: "#111827", text: "#f9fafb", secondary: "#b45309" },
+  { id: "teal",   name: "Teal",      accent: "#0d9488", bg: "#f0fdfa", text: "#134e4a", secondary: "#0f766e" },
+];
 
 const P = {
   primary: "#003466",
@@ -122,6 +135,7 @@ export default function ResumeBuilderPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [enhancingIdx, setEnhancingIdx] = useState<number | null>(null);
   const [activeTemplate, setActiveTemplate] = useState(0);
+  const [activeColorTheme, setActiveColorTheme] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
   const [summaryTone, setSummaryTone] = useState<"executive" | "specialist" | "visionary">("executive");
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" | "info" }>({
@@ -135,6 +149,7 @@ export default function ResumeBuilderPage() {
   const [keySkills, setKeySkills] = useState("");
   const [newSkill, setNewSkill] = useState("");
   const [newCert, setNewCert] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const [resumeData, setResumeData] = useState<ResumeData>({
     fullName: "",
@@ -143,11 +158,13 @@ export default function ResumeBuilderPage() {
     address: "",
     location: "",
     linkedin: "",
+    website: "",
     summary: "",
     skills: [],
     experience: [emptyExperience()],
     education: [emptyEducation()],
     certifications: [],
+    photoUrl: "",
   });
 
   useEffect(() => {
@@ -196,42 +213,41 @@ export default function ResumeBuilderPage() {
   const atsScore = useMemo(() => calcATSScore(resumeData), [resumeData]);
 
   const previewTheme = useMemo(() => {
+    const ct = COLOR_THEMES[activeColorTheme] ?? COLOR_THEMES[0];
     const themes = [
+      // Classic
       {
-        bg: '#ffffff',
-        text: '#191c1e',
-        heading: '#003466',
-        border: '#003466',
-        chip: '#eceef0',
-        font: '"Inter", sans-serif',
+        bg: ct.bg, text: ct.text, heading: ct.accent, border: ct.accent, chip: '#eceef0',
+        sideBar: false, font: '"Inter", sans-serif', twoCol: false,
       },
+      // Modern (two-column)
       {
-        bg: '#0f172a',
-        text: '#e2e8f0',
-        heading: '#38bdf8',
-        border: '#38bdf8',
-        chip: '#1e293b',
-        font: '"Space Grotesk", sans-serif',
+        bg: ct.bg, text: ct.text, heading: ct.accent, border: ct.accent, chip: ct.secondary + '22',
+        sideBar: false, font: '"Manrope", sans-serif', twoCol: true,
       },
+      // Minimal
       {
-        bg: '#fafaf9',
-        text: '#292524',
-        heading: '#57534e',
-        border: '#a8a29e',
-        chip: '#f5f5f4',
-        font: '"Georgia", serif',
+        bg: ct.bg, text: ct.text, heading: ct.accent, border: ct.accent + '66', chip: '#f5f5f4',
+        sideBar: false, font: '"Georgia", serif', twoCol: false,
       },
+      // Executive (sidebar)
       {
-        bg: '#111827',
-        text: '#f9fafb',
-        heading: '#f59e0b',
-        border: '#f59e0b',
-        chip: '#1f2937',
-        font: '"Manrope", sans-serif',
+        bg: ct.bg, text: ct.text, heading: ct.accent, border: ct.accent, chip: ct.accent + '22',
+        sideBar: true, font: '"Manrope", sans-serif', twoCol: false,
+      },
+      // Gradient
+      {
+        bg: '#ffffff', text: ct.text, heading: ct.accent, border: ct.accent, chip: ct.accent + '18',
+        sideBar: false, font: '"Inter", sans-serif', twoCol: false, gradientHeader: true,
+      },
+      // Compact
+      {
+        bg: ct.bg, text: ct.text, heading: ct.accent, border: ct.accent, chip: ct.secondary + '18',
+        sideBar: false, font: '"Inter", sans-serif', twoCol: false, compact: true,
       },
     ];
     return themes[activeTemplate] ?? themes[0];
-  }, [activeTemplate]);
+  }, [activeTemplate, activeColorTheme]);
 
   const showMsg = (text: string, type: "success" | "error" | "info") => {
     setMessage({ text, type });
@@ -450,6 +466,26 @@ export default function ResumeBuilderPage() {
 
   const inputClass = "w-full rounded-lg border px-3 py-2 text-sm outline-none";
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "resume-photos");
+      const res = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!res.ok) throw new Error("Upload failed");
+      const data = await res.json();
+      setField("photoUrl", data.url);
+      showMsg("Photo uploaded.", "success");
+    } catch {
+      showMsg("Photo upload failed.", "error");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
   if (loadingResume) {
     return (
       <ProtectedRoute>
@@ -476,7 +512,7 @@ export default function ResumeBuilderPage() {
                 <div>
                   <p className="mb-1 text-xs font-bold uppercase tracking-[0.2em]" style={{ color: P.tertiary }}>AI Resume Builder</p>
                   <h1 className="font-headline text-3xl font-black md:text-4xl" style={{ color: P.primary }}>
-                    TrustHire Cognitive Architect
+                    AiBlog Resume Architect
                   </h1>
                   <p className="mt-2 text-sm" style={{ color: P.onSurfaceVariant }}>
                     Build ATS-optimized resumes with AI-generated narrative and live quality scoring.
@@ -575,8 +611,9 @@ export default function ResumeBuilderPage() {
                           ["Location", "location", "San Francisco, CA"],
                           ["Street Address", "address", "123 Main St"],
                           ["LinkedIn URL", "linkedin", "linkedin.com/in/alex"],
+                          ["Website / Portfolio", "website", "https://yoursite.com"],
                         ].map(([label, field, placeholder]) => (
-                          <div key={String(field)} className={field === "address" || field === "linkedin" ? "md:col-span-2" : ""}>
+                          <div key={String(field)} className={field === "address" || field === "linkedin" || field === "website" ? "md:col-span-2" : ""}>
                             <label className="mb-1 block text-xs font-bold uppercase tracking-wider" style={{ color: P.outline }}>{label}</label>
                             <input
                               value={resumeData[field as keyof ResumeData] as string}
@@ -587,6 +624,21 @@ export default function ResumeBuilderPage() {
                             />
                           </div>
                         ))}
+                      </div>
+                      <div className="mt-4">
+                        <label className="mb-1 block text-xs font-bold uppercase tracking-wider" style={{ color: P.outline }}>Profile Photo (optional)</label>
+                        <div className="flex items-center gap-4">
+                          {resumeData.photoUrl && (
+                            <img src={resumeData.photoUrl} alt="Profile" className="h-16 w-16 rounded-full object-cover border-2" style={{ borderColor: P.outlineVariant }} />
+                          )}
+                          <label className="cursor-pointer rounded-lg border px-4 py-2 text-sm font-medium hover:opacity-80 transition-opacity" style={{ borderColor: P.outlineVariant, color: P.primary }}>
+                            {uploadingPhoto ? "Uploading..." : resumeData.photoUrl ? "Change Photo" : "Upload Photo"}
+                            <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploadingPhoto} />
+                          </label>
+                          {resumeData.photoUrl && (
+                            <button onClick={() => setField("photoUrl", "")} className="text-xs" style={{ color: P.error }}>Remove</button>
+                          )}
+                        </div>
                       </div>
                       <div className="mt-4 flex items-start gap-2 rounded-xl p-3" style={{ background: P.tertiaryFixed, color: P.onTertiaryFixed }}>
                         <Lightbulb className="mt-0.5 h-4 w-4" />
@@ -780,13 +832,29 @@ export default function ResumeBuilderPage() {
 
                       <div className="rounded-2xl border bg-white p-6" style={{ borderColor: `${P.outlineVariant}66` }}>
                         <h2 className="mb-3 text-lg font-bold" style={{ color: P.primary }}>Template</h2>
-                        <div className="grid grid-cols-4 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
                           {TEMPLATES.map((tpl, idx) => (
-                            <button key={tpl} className="rounded-xl border p-3 text-xs font-bold uppercase" style={{ borderColor: activeTemplate === idx ? P.primary : P.outlineVariant, color: activeTemplate === idx ? P.primary : P.outline }} onClick={() => setActiveTemplate(idx)}>
+                            <button key={tpl} className="rounded-xl border p-3 text-xs font-bold uppercase" style={{ borderColor: activeTemplate === idx ? P.primary : P.outlineVariant, color: activeTemplate === idx ? P.primary : P.outline, background: activeTemplate === idx ? `${P.primary}10` : "transparent" }} onClick={() => setActiveTemplate(idx)}>
                               {tpl}
                             </button>
                           ))}
                         </div>
+                      </div>
+
+                      <div className="rounded-2xl border bg-white p-6" style={{ borderColor: `${P.outlineVariant}66` }}>
+                        <h2 className="mb-3 text-lg font-bold" style={{ color: P.primary }}>Color Theme</h2>
+                        <div className="flex flex-wrap gap-3">
+                          {COLOR_THEMES.map((ct, idx) => (
+                            <button
+                              key={ct.name}
+                              onClick={() => setActiveColorTheme(idx)}
+                              title={ct.name}
+                              className="flex h-9 w-9 items-center justify-center rounded-full border-2 transition-transform hover:scale-110"
+                              style={{ background: ct.accent, borderColor: activeColorTheme === idx ? P.primary : "transparent", boxShadow: activeColorTheme === idx ? `0 0 0 2px ${P.primary}` : "none" }}
+                            />
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs font-medium" style={{ color: P.outline }}>{COLOR_THEMES[activeColorTheme]?.name}</p>
                       </div>
 
                       <div className="rounded-2xl border bg-white p-6" style={{ borderColor: `${P.outlineVariant}66` }}>
@@ -833,56 +901,141 @@ export default function ResumeBuilderPage() {
                     </button>
 
                     <div
-                      className={`${showPreview ? "block" : "hidden"} rounded-2xl shadow-2xl lg:block`}
+                      className={`${showPreview ? "block" : "hidden"} overflow-hidden rounded-2xl shadow-2xl lg:block`}
                       ref={previewRef}
-                      style={{ background: previewTheme.bg, color: previewTheme.text, fontFamily: previewTheme.font }}
+                      style={{ background: previewTheme.bg, color: previewTheme.text, fontFamily: previewTheme.font, fontSize: "11px" }}
                     >
-                      <div className="border-b px-8 pb-6 pt-8" style={{ borderColor: previewTheme.border }}>
-                        <h2 className="font-headline text-2xl font-black" style={{ color: previewTheme.text }}>{resumeData.fullName || "YOUR NAME"}</h2>
-                        <p className="mt-1 text-sm font-semibold" style={{ color: previewTheme.heading }}>{resumeData.experience.find((e) => e.position)?.position || "Target Role"}</p>
-                        <p className="mt-2 text-xs" style={{ color: previewTheme.text }}>
-                          {resumeData.email} {resumeData.phone ? `• ${resumeData.phone}` : ""} {resumeData.location ? `• ${resumeData.location}` : ""}
-                        </p>
+                      {/* Resume Header */}
+                      <div
+                        className="px-7 pb-5 pt-7"
+                        style={{
+                          borderBottom: `2px solid ${previewTheme.border}`,
+                          background: (previewTheme as { gradientHeader?: boolean }).gradientHeader
+                            ? `linear-gradient(135deg, ${previewTheme.heading}18 0%, ${previewTheme.bg} 100%)`
+                            : previewTheme.bg,
+                        }}
+                      >
+                        <div className="flex items-start gap-4">
+                          {resumeData.photoUrl && (
+                            <img
+                              src={resumeData.photoUrl}
+                              alt="Profile"
+                              className="mt-1 h-16 w-16 shrink-0 rounded-full object-cover border-2"
+                              style={{ borderColor: previewTheme.border }}
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <h2 className="font-headline text-xl font-black leading-tight" style={{ color: previewTheme.heading }}>
+                              {resumeData.fullName || "YOUR NAME"}
+                            </h2>
+                            <p className="mt-0.5 text-xs font-bold" style={{ color: previewTheme.heading, opacity: 0.8 }}>
+                              {resumeData.experience.find((e) => e.position)?.position || "Target Role"}
+                            </p>
+                            <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px]" style={{ color: previewTheme.text, opacity: 0.75 }}>
+                              {resumeData.email && <span>{resumeData.email}</span>}
+                              {resumeData.phone && <span>{resumeData.phone}</span>}
+                              {resumeData.location && <span>{resumeData.location}</span>}
+                              {resumeData.linkedin && <span>{resumeData.linkedin}</span>}
+                              {resumeData.website && <span>{resumeData.website}</span>}
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-5 px-8 py-6">
+                      <div className="space-y-4 px-7 py-5">
+                        {/* Summary */}
                         {resumeData.summary && (
                           <section>
-                            <h3 className="mb-1 text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: previewTheme.heading }}>Summary</h3>
-                            <p className="text-xs" style={{ color: previewTheme.text }}>{resumeData.summary}</p>
+                            <h3 className="mb-1.5 border-b pb-0.5 text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: previewTheme.heading, borderColor: `${previewTheme.border}55` }}>
+                              Professional Summary
+                            </h3>
+                            <p className="leading-relaxed" style={{ color: previewTheme.text }}>{resumeData.summary}</p>
                           </section>
                         )}
 
+                        {/* Skills */}
                         {resumeData.skills.length > 0 && (
                           <section>
-                            <h3 className="mb-1 text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: previewTheme.heading }}>Skills</h3>
-                            <p className="text-xs" style={{ color: previewTheme.text }}>{resumeData.skills.join(", ")}</p>
+                            <h3 className="mb-2 border-b pb-0.5 text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: previewTheme.heading, borderColor: `${previewTheme.border}55` }}>
+                              Core Skills
+                            </h3>
+                            <div className="flex flex-wrap gap-1.5">
+                              {resumeData.skills.map((skill, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded px-1.5 py-0.5 text-[10px] font-semibold"
+                                  style={{ background: previewTheme.chip, color: previewTheme.heading }}
+                                >{skill}</span>
+                              ))}
+                            </div>
                           </section>
                         )}
 
+                        {/* Experience */}
                         {resumeData.experience.some((e) => e.position) && (
                           <section>
-                            <h3 className="mb-2 text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: previewTheme.heading }}>Experience</h3>
+                            <h3 className="mb-2 border-b pb-0.5 text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: previewTheme.heading, borderColor: `${previewTheme.border}55` }}>
+                              Work Experience
+                            </h3>
                             <div className="space-y-3">
                               {resumeData.experience.filter((e) => e.position).slice(0, 3).map((exp, idx) => (
                                 <div key={`prev-exp-${idx}`}>
-                                  <p className="text-xs font-bold" style={{ color: previewTheme.text }}>{exp.position}</p>
-                                  <p className="text-[11px] font-semibold" style={{ color: previewTheme.heading }}>{exp.company}</p>
-                                  <p className="text-[11px]" style={{ color: previewTheme.text }}>{exp.duration}</p>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="font-bold leading-tight" style={{ color: previewTheme.text }}>{exp.position}</p>
+                                      <p className="font-semibold" style={{ color: previewTheme.heading }}>{exp.company}</p>
+                                    </div>
+                                    <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium" style={{ background: previewTheme.chip, color: previewTheme.text }}>{exp.duration}</span>
+                                  </div>
+                                  {exp.description && (
+                                    <ul className="mt-1 space-y-0.5 pl-2">
+                                      {exp.description.split("\n").filter(Boolean).slice(0, 4).map((line, li) => (
+                                        <li key={li} className="flex items-start gap-1.5 leading-snug" style={{ color: previewTheme.text }}>
+                                          <span className="mt-0.75 shrink-0 text-[8px]" style={{ color: previewTheme.heading }}>▸</span>
+                                          <span>{line.replace(/^[-•*]\s*/, "")}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
                                 </div>
                               ))}
                             </div>
                           </section>
                         )}
 
+                        {/* Education */}
                         {resumeData.education.some((e) => e.degree) && (
                           <section>
-                            <h3 className="mb-2 text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: previewTheme.heading }}>Education</h3>
+                            <h3 className="mb-2 border-b pb-0.5 text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: previewTheme.heading, borderColor: `${previewTheme.border}55` }}>
+                              Education
+                            </h3>
                             <div className="space-y-2">
                               {resumeData.education.filter((e) => e.degree).slice(0, 2).map((edu, idx) => (
-                                <p key={`prev-edu-${idx}`} className="text-xs" style={{ color: previewTheme.text }}>{edu.degree} - {edu.school} ({edu.year})</p>
+                                <div key={`prev-edu-${idx}`} className="flex items-start justify-between gap-2">
+                                  <div>
+                                    <p className="font-bold leading-tight" style={{ color: previewTheme.text }}>{edu.degree}</p>
+                                    <p style={{ color: previewTheme.heading }}>{edu.school}</p>
+                                  </div>
+                                  <span className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium" style={{ background: previewTheme.chip, color: previewTheme.text }}>{edu.year}</span>
+                                </div>
                               ))}
                             </div>
+                          </section>
+                        )}
+
+                        {/* Certifications */}
+                        {resumeData.certifications.some(Boolean) && (
+                          <section>
+                            <h3 className="mb-1.5 border-b pb-0.5 text-[9px] font-black uppercase tracking-[0.22em]" style={{ color: previewTheme.heading, borderColor: `${previewTheme.border}55` }}>
+                              Certifications
+                            </h3>
+                            <ul className="space-y-0.5">
+                              {resumeData.certifications.filter(Boolean).map((cert, i) => (
+                                <li key={i} className="flex items-center gap-1.5" style={{ color: previewTheme.text }}>
+                                  <span style={{ color: previewTheme.heading }}>✓</span> {cert}
+                                </li>
+                              ))}
+                            </ul>
                           </section>
                         )}
                       </div>

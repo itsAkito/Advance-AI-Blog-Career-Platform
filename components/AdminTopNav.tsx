@@ -28,8 +28,8 @@ export default function AdminTopNav({ activePage = "overview" }: AdminTopNavProp
   return (
     <nav className="fixed top-0 w-full z-50 bg-[#0e0e0e]/60 backdrop-blur-xl shadow-[0_24px_48px_-12px_rgba(0,0,0,0.5)] h-16 flex justify-between items-center px-8 font-headline tracking-tight">
       <div className="flex items-center gap-8">
-        <Link href="/admin" className="text-xl font-bold bg-gradient-to-br from-blue-400 to-blue-600 bg-clip-text text-transparent">
-          Synthetix Admin
+        <Link href="/admin" className="text-xl font-bold bg-linear-to-br from-blue-400 to-blue-600 bg-clip-text text-transparent">
+          AiBlog Admin
         </Link>
         <div className="hidden md:flex gap-6 text-sm">
           <Link href="/admin" className={activePage === "overview" ? "text-blue-400 font-bold" : "text-zinc-500 hover:text-blue-300 transition-colors"}>
@@ -43,7 +43,14 @@ export default function AdminTopNav({ activePage = "overview" }: AdminTopNavProp
           </Link>
         </div>
       </div>
-      <div className="flex items-center gap-5">
+      <div className="flex items-center gap-4">
+        <button
+          onClick={handleLogout}
+          className="hidden md:flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-500/10 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[16px]">logout</span>
+          Logout
+        </button>
         <span className="material-symbols-outlined text-zinc-500 hover:text-blue-300 cursor-pointer text-[20px]">sensors</span>
         <span className="material-symbols-outlined text-zinc-500 hover:text-blue-300 cursor-pointer text-[20px]">notifications</span>
         <span className="material-symbols-outlined text-zinc-500 hover:text-blue-300 cursor-pointer text-[20px]">settings</span>

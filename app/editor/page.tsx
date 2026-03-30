@@ -846,8 +846,8 @@ export function example(input: string) {
             </div>
           </div>
 
-          {/* Editor Content */}
-          <div className="flex-1 max-w-3xl mx-auto w-full px-6 py-10">
+          {/* Editor Content - WordPress style document layout */}
+          <div className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-8 py-12">
             {error && (
               <div className="mb-4 p-3 rounded-lg bg-error/10 border border-error/20 text-error text-sm flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">error</span>
@@ -991,19 +991,19 @@ export function example(input: string) {
             <input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Untitled Post"
-              className="w-full bg-transparent text-4xl md:text-5xl font-extrabold font-headline tracking-tighter text-on-surface placeholder:text-on-surface-variant/30 outline-none mb-4 leading-tight"
+              placeholder="Add title"
+              className="w-full bg-transparent text-4xl md:text-5xl font-extrabold font-headline tracking-tighter text-on-surface placeholder:text-on-surface-variant/25 outline-none mb-2 leading-tight border-b-2 border-outline-variant/20 pb-4 focus:border-primary/40 transition-colors"
             />
 
-            <div className="mb-5 flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Templates</span>
+            <div className="mb-6 flex flex-wrap items-center gap-2 pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/50">Template:</span>
               {writingTemplates.map((template) => (
                 <Button
                   key={template.id}
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="border-outline-variant/20"
+                  className="h-7 text-xs border border-outline-variant/20 text-on-surface-variant hover:text-on-surface hover:bg-surface-container"
                   onClick={() => applyTemplate(template.id)}
                 >
                   {template.label}
@@ -1011,10 +1011,16 @@ export function example(input: string) {
               ))}
             </div>
 
+            <input
+              value={excerpt}
+              onChange={(e) => setExcerpt(e.target.value)}
+              placeholder="Add a brief excerpt or subtitle..."
+              className="w-full bg-transparent text-lg text-on-surface-variant/70 placeholder:text-on-surface-variant/25 outline-none mb-6 italic"
+            />
             {/* Cover Image Preview */}
             {coverImageUrl && (
-              <div className="relative mb-6 rounded-xl overflow-hidden group">
-                <img src={coverImageUrl} alt="Cover" className="w-full h-48 object-cover" />
+              <div className="relative mb-6 rounded-xl overflow-hidden group border border-outline-variant/20">
+                <img src={coverImageUrl} alt="Cover" className="w-full h-52 object-cover" />
                 <button
                   onClick={() => setCoverImageUrl("")}
                   className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1024,18 +1030,12 @@ export function example(input: string) {
               </div>
             )}
 
-            <input
-              value={excerpt}
-              onChange={(e) => setExcerpt(e.target.value)}
-              placeholder="Add a brief excerpt..."
-              className="w-full bg-transparent text-lg text-on-surface-variant placeholder:text-on-surface-variant/20 outline-none mb-8"
-            />
-
-            <div className="mb-5 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" className="border-outline-variant/20" onClick={() => insertFormat("\n## Key Takeaways\n", "")}>Key Takeaways</Button>
-              <Button type="button" variant="outline" size="sm" className="border-outline-variant/20" onClick={() => insertFormat("\n### Quick Summary\n", "")}>Quick Summary</Button>
-              <Button type="button" variant="outline" size="sm" className="border-outline-variant/20" onClick={() => insertFormat("\n- [ ] Add actionable checklist\n", "")}>Checklist</Button>
-              <Button type="button" variant="outline" size="sm" className="border-outline-variant/20" onClick={() => insertFormat("\n| Metric | Result |\n| --- | --- |\n| Value | Value |\n", "")}>Table</Button>
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <span className="self-center text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40 mr-1">Quick Insert:</span>
+              <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px] border border-outline-variant/20 text-on-surface-variant/60 hover:text-on-surface" onClick={() => insertFormat("\n## Key Takeaways\n", "")}>Key Takeaways</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px] border border-outline-variant/20 text-on-surface-variant/60 hover:text-on-surface" onClick={() => insertFormat("\n### Quick Summary\n", "")}>Summary</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px] border border-outline-variant/20 text-on-surface-variant/60 hover:text-on-surface" onClick={() => insertFormat("\n- [ ] Task 1\n- [ ] Task 2\n", "")}>Checklist</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 text-[11px] border border-outline-variant/20 text-on-surface-variant/60 hover:text-on-surface" onClick={() => insertFormat("\n| Metric | Result |\n| --- | --- |\n| Value | Value |\n", "")}>Table</Button>
             </div>
 
             <textarea
@@ -1043,8 +1043,8 @@ export function example(input: string) {
               value={content}
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Start writing your story... (Markdown supported: **bold**, *italic*, ## heading, etc.)"
-              className="w-full flex-1 min-h-[60vh] bg-transparent text-on-surface placeholder:text-on-surface-variant/20 outline-none resize-none text-base leading-relaxed font-mono"
+              placeholder="Start writing... Type / for commands, or use the toolbar above. Markdown supported."
+              className="w-full flex-1 min-h-[65vh] bg-transparent text-on-surface placeholder:text-on-surface-variant/25 outline-none resize-none text-base leading-[1.9] font-mono tracking-normal"
             />
             {showSlashCommand && (
                 <Popover open={showSlashCommand} onOpenChange={setShowSlashCommand}>

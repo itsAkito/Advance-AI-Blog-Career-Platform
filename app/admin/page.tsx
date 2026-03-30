@@ -57,6 +57,26 @@ export default function AdminPage() {
     if (loading) return;
     if (!user) { router.push("/auth"); return; }
     if (!isAdmin) { router.push("/dashboard"); return; }
+
+    // 2-hour admin session expiry
+    const SESSION_KEY = "admin_session_start";
+    const TWO_HOURS = 2 * 60 * 60 * 1000;
+    const sessionStart = localStorage.getItem(SESSION_KEY);
+    if (!sessionStart) {
+      localStorage.setItem(SESSION_KEY, Date.now().toString());
+    } else if (Date.now() - parseInt(sessionStart) > TWO_HOURS) {
+      localStorage.removeItem(SESSION_KEY);
+      router.push("/admin/login");
+      return;
+    }
+    const interval = window.setInterval(() => {
+      const start = localStorage.getItem(SESSION_KEY);
+      if (!start || Date.now() - parseInt(start) > TWO_HOURS) {
+        localStorage.removeItem(SESSION_KEY);
+        router.push("/admin/login");
+      }
+    }, 60000); // check every minute
+    return () => window.clearInterval(interval);
   }, [user, isAdmin, loading, router]);
 
   useEffect(() => {
