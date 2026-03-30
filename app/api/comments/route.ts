@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthUserId } from '@/lib/auth-helpers';
+import { logActivity } from '@/lib/activity-log';
 
 // GET comments for a specific post
 export async function GET(request: NextRequest) {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     let query = supabase
       .from('comments')
-      .select('*, profiles(id, name, avatar_url)')
+      .select('id, post_id, community_post_id, user_id, guest_name, guest_email, content, created_at')
       .order('created_at', { ascending: false })
       .limit(limit);
 
@@ -31,7 +32,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ comments: data || [] });
+    const comments = data || [];
+    const userIds = [...new Set(comments.map((comment) => comment.user_id).filter(Boolean))] as string[];
+    const profileMap = new Map<string, { id: string; name: string | null; avatar_url: string | null }>();
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', userIds);
+
+      for (const profile of profiles || []) {
+        profileMap.set(profile.id, profile);
+      }
+    }
+
+    const hydrated = comments.map((comment) => ({
+      ...comment,
+      profiles: comment.user_id ? profileMap.get(comment.user_id) || null : null,
+    }));
+
+    return NextResponse.json({ comments: hydrated });
   } catch (error) {
     console.error('Get comments error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -116,7 +137,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('comments')
       .insert([commentData])
-      .select('*, profiles(id, name, avatar_url)')
+      .select('id, post_id, community_post_id, user_id, guest_name, guest_email, content, created_at')
       .single();
 
     if (error) {
@@ -155,7 +176,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ comment: data }, { status: 201 });
+    let profile = null;
+    if (userId) {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .eq('id', userId)
+        .maybeSingle();
+      profile = userProfile || null;
+    }
+
+    await logActivity({
+      userId: userId || null,
+      activityType: 'comment_created',
+      entityType: postId ? 'post' : 'community_post',
+      entityId: postId || communityPostId,
+      metadata: {
+        isGuest: !userId,
+        guestName: !userId ? guestName?.trim().substring(0, 100) : null,
+      },
+    });
+
+    return NextResponse.json({ comment: { ...data, profiles: profile } }, { status: 201 });
   } catch (error) {
     console.error('Create comment error:', error);
     return NextResponse.json({

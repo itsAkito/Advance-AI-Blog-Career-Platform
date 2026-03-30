@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface SubscriptionPlan {
@@ -20,7 +20,7 @@ interface CurrentSubscription {
   subscription_plans?: SubscriptionPlan | null;
 }
 
-export default function PricingPage() {
+function PricingPageContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -521,5 +521,13 @@ export default function PricingPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <PricingPageContent />
+    </Suspense>
   );
 }

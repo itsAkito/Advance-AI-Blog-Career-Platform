@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthUserId } from '@/lib/auth-helpers';
+import { logActivity } from '@/lib/activity-log';
 
 type LikeRow = { user_id: string; created_at?: string | null };
 
@@ -49,9 +50,22 @@ export async function GET(request: NextRequest) {
     const likes = likeResult.data || [];
     const likedByCurrentUser = !!userId && likes.some((like) => like.user_id === userId);
 
+    const likerIds = [...new Set(likes.map((like) => like.user_id))];
+    let likers: Array<{ id: string; name: string | null; avatar_url: string | null }> = [];
+
+    if (likerIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, name, avatar_url')
+        .in('id', likerIds);
+      likers = profiles || [];
+    }
+
     return NextResponse.json({
       likes,
+      likers,
       count: likes.length,
+      likesCount: likes.length,
       likedByCurrentUser,
     });
   } catch (error) {
@@ -71,7 +85,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { postId } = await request.json();
+    const queryPostId = request.nextUrl.searchParams.get('post_id');
+    let bodyPostId: string | null = null;
+    if (!queryPostId) {
+      try {
+        const body = await request.json();
+        bodyPostId = body?.postId || body?.post_id || null;
+      } catch {
+        bodyPostId = null;
+      }
+    }
+
+    const postId = queryPostId || bodyPostId;
     if (!postId) {
       return NextResponse.json({ error: 'postId is required' }, { status: 400 });
     }
@@ -86,15 +111,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 });
     }
 
-    const insertResult = await queryLikesTable(async (table) =>
-      supabase.from(table).insert({ post_id: postId, user_id: userId }).select('user_id, created_at').single()
-    ).catch(async (error) => {
-      const code = typeof error === 'object' && error !== null ? (error as { code?: string }).code : undefined;
-      if (code === '23505') {
-        return { table: 'post_likes' as const, data: null };
-      }
-      throw error;
-    });
+    const existingLike = await queryLikesTable<LikeRow | null>(async (table) =>
+      supabase.from(table).select('user_id, created_at').eq('post_id', postId).eq('user_id', userId).maybeSingle()
+    );
+
+    let insertResult: { table: (typeof LIKE_TABLES)[number]; data: LikeRow | null } = {
+      table: existingLike.table,
+      data: existingLike.data,
+    };
+
+    if (!existingLike.data) {
+      insertResult = await queryLikesTable<LikeRow>(async (table) =>
+        supabase.from(table).insert({ post_id: postId, user_id: userId }).select('user_id, created_at').single()
+      );
+    }
 
     const countResult = await queryLikesTable<LikeRow[]>(async (table) =>
       supabase.from(table).select('user_id').eq('post_id', postId)
@@ -119,7 +149,23 @@ export async function POST(request: NextRequest) {
       console.warn('Failed to create like notification:', notificationError);
     }
 
-    return NextResponse.json({ success: true, like: insertResult.data, count });
+    await logActivity({
+      userId,
+      activityType: 'post_liked',
+      entityType: 'post',
+      entityId: postId,
+      metadata: {
+        likesCount: count,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      like: insertResult.data,
+      count,
+      likesCount: count,
+      likedByCurrentUser: true,
+    });
   } catch (error) {
     console.error('Error creating like:', error);
     return NextResponse.json(
@@ -154,7 +200,22 @@ export async function DELETE(request: NextRequest) {
 
     await supabase.from('posts').update({ likes_count: count }).eq('id', postId);
 
-    return NextResponse.json({ success: true, count });
+    await logActivity({
+      userId,
+      activityType: 'post_unliked',
+      entityType: 'post',
+      entityId: postId,
+      metadata: {
+        likesCount: count,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      count,
+      likesCount: count,
+      likedByCurrentUser: false,
+    });
   } catch (error) {
     console.error('Error deleting like:', error);
     return NextResponse.json(

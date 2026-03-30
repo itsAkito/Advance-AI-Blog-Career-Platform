@@ -30,6 +30,7 @@ export default function ModerationPage() {
   }, [user, isAdmin]);
   const [selectedPost, setSelectedPost] = useState<FlaggedPost | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchFlaggedPosts();
@@ -89,6 +90,27 @@ export default function ModerationPage() {
     }
   };
 
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Delete this post permanently? This action cannot be undone.")) return;
+    setDeletingPostId(postId);
+    try {
+      const response = await fetch(`/api/admin/posts/${postId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete post");
+      }
+
+      setPosts((current) => current.filter((post) => post.id !== postId));
+      if (selectedPost?.id === postId) {
+        setSelectedPost(null);
+      }
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Failed to delete post");
+    } finally {
+      setDeletingPostId(null);
+    }
+  };
+
   const filteredPosts = posts.filter((p) => filter === "all" || p.status === filter);
 
   const severityColor = (s: string) => {
@@ -137,7 +159,7 @@ export default function ModerationPage() {
               <span className="material-symbols-outlined text-sm mr-1 align-middle">history</span>
               History
             </button>
-            <button className="px-5 py-2.5 bg-gradient-to-r from-primary to-primary-container text-on-primary-fixed rounded-lg text-xs font-bold hover:scale-[1.02] transition-all shadow-lg shadow-primary/20">
+            <button className="px-5 py-2.5 bg-linear-to-r from-primary to-primary-container text-on-primary-fixed rounded-lg text-xs font-bold hover:scale-[1.02] transition-all shadow-lg shadow-primary/20">
               <span className="material-symbols-outlined text-sm mr-1 align-middle">auto_fix_high</span>
               Auto-Review
             </button>
@@ -289,6 +311,15 @@ export default function ModerationPage() {
                     Escalate
                   </button>
                 </div>
+
+                <button
+                  onClick={() => handleDeletePost(selectedPost.id)}
+                  disabled={deletingPostId === selectedPost.id}
+                  className="mt-3 w-full px-4 py-3 bg-red-500/10 text-red-400 rounded-lg text-xs font-bold uppercase tracking-wider hover:bg-red-500/20 transition-all disabled:opacity-60"
+                >
+                  <span className="material-symbols-outlined text-sm mr-1 align-middle">delete_forever</span>
+                  {deletingPostId === selectedPost.id ? "Deleting..." : "Delete Post"}
+                </button>
 
                 {/* Resolution Log */}
                 <div className="mt-6 pt-6 border-t border-outline-variant/10">

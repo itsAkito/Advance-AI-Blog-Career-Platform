@@ -34,6 +34,12 @@ interface Comment {
   profiles?: { id: string; name: string; avatar_url?: string } | null;
 }
 
+interface LikerProfile {
+  id: string;
+  name: string | null;
+  avatar_url?: string | null;
+}
+
 export default function BlogPostPage() {
   const params = useParams();
   const slug = params.slug as string;
@@ -48,6 +54,7 @@ export default function BlogPostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentSuccess, setCommentSuccess] = useState("");
   const [liked, setLiked] = useState(false);
+  const [likers, setLikers] = useState<LikerProfile[]>([]);
 
   const fetchPost = useCallback(async () => {
     try {
@@ -77,6 +84,19 @@ export default function BlogPostPage() {
     }
   }, [post?.id]);
 
+  const fetchLikers = useCallback(async () => {
+    if (!post?.id) return;
+    try {
+      const res = await fetch(`/api/likes?post_id=${post.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLikers(data.likers || []);
+      }
+    } catch (err) {
+      console.error("Failed to load likers:", err);
+    }
+  }, [post?.id]);
+
   useEffect(() => {
     fetchPost();
   }, [fetchPost]);
@@ -84,6 +104,10 @@ export default function BlogPostPage() {
   useEffect(() => {
     fetchComments();
   }, [fetchComments]);
+
+  useEffect(() => {
+    fetchLikers();
+  }, [fetchLikers]);
 
   const handleLike = async () => {
     if (!post) return;
@@ -99,6 +123,7 @@ export default function BlogPostPage() {
           const data = await res.json();
           setLiked(false);
           setPost({ ...post, likes_count: data.count ?? Math.max(0, post.likes_count - 1) });
+          fetchLikers();
         }
       } else {
         // Like
@@ -111,6 +136,7 @@ export default function BlogPostPage() {
           const data = await res.json();
           setLiked(true);
           setPost({ ...post, likes_count: data.count ?? post.likes_count + 1 });
+          fetchLikers();
         }
       }
     } catch (err) {
@@ -272,6 +298,12 @@ export default function BlogPostPage() {
                   {post.comments_count || comments.length} comments
                 </span>
               </div>
+              {likers.length > 0 && (
+                <p className="mt-3 text-xs text-on-surface-variant">
+                  Liked by {likers.slice(0, 3).map((liker) => liker.name || "User").join(", ")}
+                  {likers.length > 3 ? ` and ${likers.length - 3} others` : ""}
+                </p>
+              )}
             </div>
           </header>
 

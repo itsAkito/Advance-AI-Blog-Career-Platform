@@ -15,7 +15,6 @@ export async function getAuthUserId(request?: NextRequest): Promise<string | nul
   // Fall back to OTP session from database
   if (request) {
     try {
-      const supabase = await createClient();
       const otpSessionToken = request.cookies.get("otp_session_token")?.value;
       const otpSession = request.cookies.get("otp_session")?.value;
       

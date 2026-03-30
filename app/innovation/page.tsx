@@ -19,12 +19,14 @@ import {
   BookOpen,
   ExternalLink,
   ChevronRight,
+  Landmark,
 } from "lucide-react";
 
 type InnovationItem = {
   id: string;
   title: string;
   summary: string;
+  content?: string;
   url: string;
   source: "arxiv" | "crossref" | "github";
   category: string;
@@ -35,6 +37,7 @@ type NewsItem = {
   id: string;
   title: string;
   summary: string;
+  content?: string;
   url: string;
   sourceName: string;
   category: string;
@@ -85,14 +88,46 @@ const SOURCE_BG: Record<InnovationItem["source"], string> = {
   github: "bg-violet-500/10 border-violet-500/20",
 };
 
+const isInnovationSource = (value: unknown): value is InnovationItem["source"] => {
+  return value === "arxiv" || value === "crossref" || value === "github";
+};
+
+type ReadableItem = {
+  id: string;
+  title: string;
+  summary: string;
+  content?: string;
+  sourceName: string;
+  category: string;
+  publishedAt: string;
+  url: string;
+  imageUrl?: string;
+};
+
+const toReadableItem = (item: InnovationItem | NewsItem): ReadableItem => ({
+  id: item.id,
+  title: item.title,
+  summary: item.summary,
+  content: "content" in item ? item.content : undefined,
+  sourceName: "sourceName" in item ? item.sourceName : SOURCE_LABEL[item.source],
+  category: item.category || "Innovation",
+  publishedAt: item.publishedAt,
+  url: item.url,
+  imageUrl: "imageUrl" in item ? item.imageUrl : undefined,
+});
+
 export default function InnovationPage() {
   const [loading, setLoading] = useState(true);
   const [newsLoading, setNewsLoading] = useState(true);
   const [feed, setFeed] = useState<InnovationFeed | null>(null);
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [worldNews, setWorldNews] = useState<NewsItem[]>([]);
+  const [researchNews, setResearchNews] = useState<NewsItem[]>([]);
+  const [geopolitics, setGeopolitics] = useState<NewsItem[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [activeTab, setActiveTab] = useState<"news" | "research" | "community">("news");
+  const [activeTab, setActiveTab] = useState<"news" | "research" | "community">("research");
+  const [selectedStory, setSelectedStory] = useState<ReadableItem | null>(null);
 
   useEffect(() => {
     const loadFeed = async () => {
@@ -110,7 +145,12 @@ export default function InnovationPage() {
         const res = await fetch("/api/innovation/news");
         if (res.ok) {
           const data = await res.json();
-          setNews(data.items || []);
+          const parsedResearch = data.researchNews || [];
+          const parsedWorld = data.worldNews || [];
+          setResearchNews(parsedResearch);
+          setWorldNews(parsedWorld);
+          setGeopolitics(data.geopolitics || []);
+          setNews(data.items || [...parsedResearch, ...parsedWorld]);
         }
       } catch {}
       finally { setNewsLoading(false); }
@@ -152,6 +192,42 @@ export default function InnovationPage() {
     });
     return Object.entries(topics).sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [feed?.items, news]);
+
+  const researchItems = useMemo(() => {
+    const combined = [...researchNews, ...(feed?.items || [])];
+    const seen = new Set<string>();
+    return combined.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  }, [feed?.items, researchNews]);
+
+  const recommendedStories = useMemo(() => {
+    const pool = [...worldNews, ...researchItems, ...geopolitics].map(toReadableItem);
+    const seen = new Set<string>();
+    const unique = pool.filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+
+    if (!selectedStory) {
+      return unique.slice(0, 5);
+    }
+
+    const tokens = selectedStory.category.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+    return unique
+      .filter((item) => item.id !== selectedStory.id)
+      .map((item) => {
+        const blob = `${item.title} ${item.summary} ${item.category}`.toLowerCase();
+        const score = tokens.reduce((acc, token) => (blob.includes(token) ? acc + 1 : acc), 0);
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((entry) => entry.item);
+  }, [geopolitics, researchItems, selectedStory, worldNews]);
 
   return (
     <>
@@ -202,7 +278,7 @@ export default function InnovationPage() {
               <div className="grid grid-cols-2 gap-3 min-w-65">
                 <div className="rounded-xl bg-violet-500/10 border border-violet-500/15 p-4">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-violet-300">News Sources</p>
-                  <p className="mt-1.5 text-2xl font-bold text-violet-400">{news.length > 0 ? "5" : "–"}</p>
+                  <p className="mt-1.5 text-2xl font-bold text-violet-400">{worldNews.length + researchNews.length}</p>
                 </div>
                 <div className="rounded-xl bg-blue-500/10 border border-blue-500/15 p-4">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-blue-300">arXiv Papers</p>
@@ -356,7 +432,7 @@ export default function InnovationPage() {
                     </div>
                   )}
 
-                  {news.map((item) => (
+                  {worldNews.map((item) => (
                     <article key={item.id} className="group rounded-2xl border border-white/8 bg-[#13112b] p-5 transition-all hover:border-violet-500/25 hover:bg-[#161330]">
                       <div className="flex items-start gap-4">
                         {item.imageUrl && (
@@ -380,14 +456,23 @@ export default function InnovationPage() {
                           {item.summary && (
                             <p className="mt-2 line-clamp-2 text-sm text-zinc-400">{item.summary}</p>
                           )}
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                            className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-violet-400 hover:text-violet-300"
-                          >
-                            Read full article <ExternalLink className="h-3 w-3" />
-                          </a>
+                          <div className="mt-3 flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedStory(toReadableItem(item))}
+                              className="inline-flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 text-xs font-semibold text-violet-300 hover:bg-violet-500/20"
+                            >
+                              Read in app
+                            </button>
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-400 hover:text-violet-300"
+                            >
+                              Original source <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
                         </div>
                       </div>
                     </article>
@@ -410,10 +495,23 @@ export default function InnovationPage() {
                       <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-300">Featured Breakthrough</span>
                       <h3 className="mt-3 text-xl font-bold text-white">{feed.featured.title}</h3>
                       <p className="mt-2 line-clamp-4 text-sm text-zinc-300">{feed.featured.summary}</p>
-                      <a href={feed.featured.url} target="_blank" rel="noreferrer"
-                        className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition-colors">
-                        Open Source Item <ArrowRight className="h-4 w-4" />
-                      </a>
+                      <div className="mt-5 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (feed?.featured) {
+                              setSelectedStory(toReadableItem(feed.featured));
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-500 transition-colors"
+                        >
+                          Read In App <ArrowRight className="h-4 w-4" />
+                        </button>
+                        <a href={feed.featured.url} target="_blank" rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 hover:text-blue-200">
+                          Original source <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
                     </div>
                   )}
 
@@ -425,12 +523,22 @@ export default function InnovationPage() {
                     </div>
                   )}
 
-                  {(feed?.items || []).map((item) => (
+                  {researchItems.map((item: InnovationItem | NewsItem) => {
+                    const rawSource = (item as { source?: unknown }).source;
+                    const sourceKey: InnovationItem["source"] | null = isInnovationSource(rawSource) ? rawSource : null;
+
+                    return (
                     <article key={item.id} className="group rounded-2xl border border-white/8 bg-[#13112b] p-5 transition-all hover:border-blue-500/25 hover:bg-[#13152b]">
                       <div className="mb-3 flex items-center justify-between flex-wrap gap-2">
-                        <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${SOURCE_BG[item.source]} ${SOURCE_COLOR[item.source]}`}>
-                          {SOURCE_LABEL[item.source]}
-                        </span>
+                        {sourceKey ? (
+                          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${SOURCE_BG[sourceKey]} ${SOURCE_COLOR[sourceKey]}`}>
+                            {SOURCE_LABEL[sourceKey]}
+                          </span>
+                        ) : (
+                          <span className="rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-300">
+                            {"sourceName" in item && item.sourceName ? item.sourceName : "Global News"}
+                          </span>
+                        )}
                         <span className="text-[10px] text-zinc-600">
                           {new Date(item.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
@@ -439,13 +547,22 @@ export default function InnovationPage() {
                       <p className="mt-2 line-clamp-3 text-sm text-zinc-400">{item.summary}</p>
                       <div className="mt-4 flex items-center justify-between border-t border-white/8 pt-3">
                         <span className="text-[10px] text-zinc-600">{item.category || "Innovation"}</span>
-                        <a href={item.url} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs font-semibold text-blue-400 hover:text-blue-300">
-                          Open <ExternalLink className="h-3 w-3" />
-                        </a>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStory(toReadableItem(item))}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-300 hover:text-blue-200"
+                          >
+                            Read in app
+                          </button>
+                          <a href={item.url} target="_blank" rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-zinc-500 hover:text-blue-300">
+                            Source <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
                       </div>
                     </article>
-                  ))}
+                  );})}
                 </div>
               )}
 
@@ -544,15 +661,50 @@ export default function InnovationPage() {
 
               <div className="rounded-2xl border border-white/10 bg-[#13112b] p-5">
                 <div className="mb-3 flex items-center gap-2">
-                  <Rss className="h-4 w-4 text-orange-400" />
-                  <h3 className="text-sm font-bold text-white">Live News Sources</h3>
+                  <Landmark className="h-4 w-4 text-rose-400" />
+                  <h3 className="text-sm font-bold text-white">Geopolitics Now</h3>
+                </div>
+                {newsLoading ? (
+                  <div className="space-y-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-14 rounded-lg bg-white/5 animate-pulse" />
+                    ))}
+                  </div>
+                ) : geopolitics.length > 0 ? (
+                  <div className="space-y-3">
+                    {geopolitics.slice(0, 4).map((item) => (
+                      <button
+                        type="button"
+                        key={item.id}
+                        onClick={() => setSelectedStory(toReadableItem(item))}
+                        className="block rounded-lg border border-white/8 bg-[#1a1730] p-3 hover:border-rose-500/25 hover:bg-rose-500/5 transition-colors"
+                      >
+                        <p className="line-clamp-2 text-left text-xs font-semibold text-zinc-200 hover:text-rose-300 transition-colors">{item.title}</p>
+                        <p className="mt-1 text-left text-[10px] text-zinc-500">{item.sourceName}</p>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-zinc-500">No geopolitical updates right now.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#13112b] p-5">
+                <div className="mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-400" />
+                  <h3 className="text-sm font-bold text-white">Recommended For You</h3>
                 </div>
                 <div className="space-y-2">
-                  {["BBC Technology", "BBC Science", "NYT Technology", "TechCrunch", "Wired"].map((source) => (
-                    <div key={source} className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      <span className="text-xs text-zinc-400">{source}</span>
-                    </div>
+                  {recommendedStories.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setSelectedStory(item)}
+                      className="w-full rounded-lg border border-white/8 bg-[#1a1730] p-3 text-left hover:border-amber-500/25 hover:bg-amber-500/5 transition-colors"
+                    >
+                      <p className="line-clamp-2 text-xs font-semibold text-zinc-200">{item.title}</p>
+                      <p className="mt-1 text-[10px] text-zinc-500">{item.sourceName}</p>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -611,6 +763,59 @@ export default function InnovationPage() {
           </div>
         </div>
       </main>
+      {selectedStory && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-black/70 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-[#13112b] p-6">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.16em] text-violet-300">{selectedStory.sourceName}</p>
+                <h3 className="mt-1 text-2xl font-bold text-white">{selectedStory.title}</h3>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {new Date(selectedStory.publishedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  {selectedStory.category ? ` • ${selectedStory.category}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedStory(null)}
+                className="rounded-md border border-white/15 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:bg-white/10"
+              >
+                Close
+              </button>
+            </div>
+
+            {selectedStory.imageUrl && (
+              <div className="mb-4 overflow-hidden rounded-xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={selectedStory.imageUrl}
+                  alt=""
+                  className="h-56 w-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="space-y-4 text-sm leading-7 text-zinc-300">
+              <p>{selectedStory.summary}</p>
+              <p>{selectedStory.content || "Full-source text is not available for this article yet. Use the original source link for full coverage."}</p>
+            </div>
+
+            <div className="mt-5 border-t border-white/10 pt-4">
+              <a
+                href={selectedStory.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-violet-300 hover:text-violet-200"
+              >
+                View Original Source <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
       <style jsx global>{`
         @keyframes marquee {

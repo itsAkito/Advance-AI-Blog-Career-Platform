@@ -20,12 +20,25 @@ export default function AnalyticsPage() {
     aiGenerations: 0,
     avgEngagement: 0,
   });
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    id: string;
+    activity_type: string;
+    entity_type: string | null;
+    entity_id: string | null;
+    created_at: string;
+    user: { id: string; name: string | null; email: string | null } | null;
+  }>>([]);
+  const [activityTotals, setActivityTotals] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const postsRes = await fetch("/api/posts?limit=100");
+        const [postsRes, activityRes] = await Promise.all([
+          fetch("/api/posts?limit=100"),
+          fetch("/api/admin/activity?limit=30"),
+        ]);
         const postsData = postsRes.ok ? await postsRes.json() : {};
+        const activityData = activityRes.ok ? await activityRes.json() : {};
 
         const allPosts = postsData.posts || [];
         const totalViews = allPosts.reduce((sum: number, p: any) => sum + (p.views || 0), 0);
@@ -39,6 +52,9 @@ export default function AnalyticsPage() {
           aiGenerations: aiPosts,
           avgEngagement,
         });
+
+        setRecentActivity(activityData.activities || []);
+        setActivityTotals(activityData.totals || {});
       } catch (err) {
         console.error("Failed to fetch analytics:", err);
       }
@@ -128,6 +144,48 @@ export default function AnalyticsPage() {
           ))}
         </div>
 
+        <div className="glass-panel rounded-xl p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold font-headline">Recent User Activity</h3>
+            <span className="text-[10px] uppercase tracking-wider text-on-surface-variant">Admin visibility</span>
+          </div>
+
+          {Object.keys(activityTotals).length > 0 && (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {Object.entries(activityTotals)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([type, count]) => (
+                  <span key={type} className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[11px] text-primary">
+                    {type.replace(/_/g, " ")}: {count}
+                  </span>
+                ))}
+            </div>
+          )}
+
+          {recentActivity.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No activity logs available yet.</p>
+          ) : (
+            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+              {recentActivity.map((entry) => (
+                <div key={entry.id} className="rounded-lg border border-outline-variant/10 bg-surface-container-low/40 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-white">{entry.activity_type.replace(/_/g, " ")}</p>
+                      <p className="text-[11px] text-on-surface-variant">
+                        {(entry.user?.name || entry.user?.email || "System")} • {entry.entity_type || "entity"} {entry.entity_id || ""}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-on-surface-variant whitespace-nowrap">
+                      {new Date(entry.created_at).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           {/* Growth Chart */}
           <div className="lg:col-span-2 glass-panel rounded-xl p-6">
@@ -183,7 +241,7 @@ export default function AnalyticsPage() {
                   </div>
                   <div className="h-1.5 bg-surface-container-highest rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-primary to-tertiary rounded-full transition-all"
+                      className="h-full bg-linear-to-r from-primary to-tertiary rounded-full transition-all"
                       style={{ width: `${item.pct}%` }}
                     ></div>
                   </div>
@@ -207,7 +265,7 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="h-2 bg-surface-container-highest rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-primary to-primary-container rounded-full transition-all"
+                        className="h-full bg-linear-to-r from-primary to-primary-container rounded-full transition-all"
                         style={{ width: `${c.completion}%` }}
                       ></div>
                     </div>

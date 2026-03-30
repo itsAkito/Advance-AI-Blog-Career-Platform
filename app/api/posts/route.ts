@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { auth } from '@clerk/nextjs/server';
 import { getAuthUserId } from '@/lib/auth-helpers';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(request: NextRequest) {
   try {
@@ -191,6 +192,19 @@ export async function POST(request: NextRequest) {
       console.error('Create post error:', error);
       return NextResponse.json({ error: 'Failed to create post.' }, { status: 500 });
     }
+
+    await logActivity({
+      userId,
+      activityType: 'post_created',
+      entityType: 'post',
+      entityId: data.id,
+      metadata: {
+        title,
+        topic: topic || null,
+        status: published ? 'published' : (status || 'draft'),
+        aiGenerated: isAiGenerated,
+      },
+    });
 
     return NextResponse.json({ message: 'Post created successfully', post: data }, { status: 201 });
   } catch (error) {

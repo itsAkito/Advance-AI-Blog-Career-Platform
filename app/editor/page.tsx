@@ -232,7 +232,6 @@ export function example(input: string) {
     if (e.key === "/") {
       const textarea = contentRef.current;
       if (textarea) {
-        const { top, left } = textarea.getBoundingClientRect();
         const start = textarea.selectionStart;
         const text = textarea.value.substring(0, start);
         const lines = text.split("\n");
@@ -312,38 +311,6 @@ export function example(input: string) {
     { label: "Table", action: () => insertFormat("\n| Column 1 | Column 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n", "") },
     { label: "Checklist", action: () => insertFormat("\n- [ ] Task 1\n- [ ] Task 2\n", "") },
     { label: "Callout", action: () => insertFormat("\n> [!NOTE] Add your key insight here\n", "") },
-  ];
-
-  const formatActions: {
-    type: "button" | "popover";
-    icon: string;
-    label: string;
-    action?: () => void;
-    items?: { label: string; action: () => void }[];
-  }[] = [
-    {
-      type: "popover",
-      icon: "format_h",
-      label: "Headings",
-      items: [
-        { label: "Heading 1", action: () => insertFormat("\n# ", "") },
-        { label: "Heading 2", action: () => insertFormat("\n## ", "") },
-        { label: "Heading 3", action: () => insertFormat("\n### ", "") },
-        { label: "Heading 4", action: () => insertFormat("\n#### ", "") },
-      ],
-    },
-    { type: "button", icon: "format_bold", label: "Bold", action: () => insertFormat("**", "**") },
-    { type: "button", icon: "format_italic", label: "Italic", action: () => insertFormat("*", "*") },
-    { type: "button", icon: "format_strikethrough", label: "Strikethrough", action: () => insertFormat("~~", "~~") },
-    { type: "button", icon: "format_list_bulleted", label: "Bullet List", action: () => insertFormat("\n- ", "") },
-    { type: "button", icon: "format_list_numbered", label: "Numbered List", action: () => insertFormat("\n1. ", "") },
-    { type: "button", icon: "format_quote", label: "Blockquote", action: () => insertFormat("\n> ", "") },
-    { type: "button", icon: "code", label: "Inline Code", action: () => insertFormat("`", "`") },
-    { type: "button", icon: "code_blocks", label: "Code Block", action: () => insertFormat("\n```\n", "\n```\n") },
-    { type: "button", icon: "link", label: "Link", action: () => insertFormat("[", "](url)") },
-    { type: "button", icon: "table", label: "Table", action: () => insertFormat("\n| Column 1 | Column 2 |\n| --- | --- |\n| Value 1 | Value 2 |\n", "") },
-    { type: "button", icon: "checklist", label: "Checklist", action: () => insertFormat("\n- [ ] Task 1\n- [ ] Task 2\n", "") },
-    { type: "button", icon: "horizontal_rule", label: "Divider", action: () => insertFormat("\n\n---\n\n", "") },
   ];
 
   // Load existing post when editing
@@ -1151,6 +1118,7 @@ export function example(input: string) {
             </div>
             </div>
           </div>
+        </div>
 
         {/* AI Assistant Sidebar */}
         {showAISidebar && (

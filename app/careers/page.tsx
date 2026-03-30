@@ -139,19 +139,6 @@ function ResumeBuilder() {
     }));
   };
 
-  const addProject = () => {
-    setResumeData(prev => ({
-      ...prev,
-      projects: [...prev.projects, {
-        id: Date.now().toString(),
-        name: "",
-        description: "",
-        technologies: [],
-        url: "",
-      }]
-    }));
-  };
-
   return (
     <div className="space-y-8">
       {/* Header */}

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -18,8 +17,6 @@ export default function ConsentModal({
   onDeny,
 }: ConsentModalProps) {
   if (!isOpen) return null;
-
-  const dashboardUrl = userRole === "admin" ? "/admin" : "/dashboard";
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">

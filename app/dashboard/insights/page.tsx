@@ -18,7 +18,13 @@ export default function InsightsPage() {
     if (!user?.id) return;
     setLoadingAnalytics(true);
     try {
-      const response = await fetch(`/api/user/analytics?timeframe=${range}`);
+      const daysMap: Record<typeof range, number> = {
+        "7D": 7,
+        "30D": 30,
+        "90D": 90,
+        "1Y": 365,
+      };
+      const response = await fetch(`/api/analytics/user?days=${daysMap[range]}`);
       if (response.ok) {
         const data = await response.json();
         setAnalyticsData(data);
@@ -34,10 +40,43 @@ export default function InsightsPage() {
     fetchAnalyticsData(dateRange);
   }, [dateRange, fetchAnalyticsData]);
 
+  const fetchAIInsights = useCallback(async () => {
+    setLoadingAI(true);
+    try {
+      const summary = analyticsData?.summary;
+      const trendList = (analyticsData?.dailyData || [])
+        .slice(-10)
+        .map((d: any) => `Views:${d.daily_views || 0}, Likes:${d.daily_likes || 0}, Comments:${d.daily_comments || 0}`)
+        .join(" | ");
+
+      const response = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: `Create a concise analytics report for my blog performance. Date range: ${dateRange}. Totals: Views ${summary?.totalViews || 0}, Likes ${summary?.totalLikes || 0}, Comments ${summary?.totalComments || 0}, Shares ${summary?.totalShares || 0}, Followers ${summary?.totalNewFollowers || 0}. Recent daily trend: ${trendList}`,
+          tone: "professional",
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data?.content || data?.text || "No AI insights generated.";
+        setInsights(content);
+      } else {
+        setInsights("AI report is currently unavailable. Please retry in a moment.");
+      }
+    } catch (err) {
+      console.error("Failed to fetch AI insights:", err);
+      setInsights("Failed to generate AI insights. Please try again.");
+    } finally {
+      setLoadingAI(false);
+    }
+  }, [analyticsData, dateRange]);
+
   const growthData = analyticsData?.dailyData?.map((d: any) => d.views || 0) || [35, 42, 38, 56, 48, 72, 65, 80, 74, 92, 88, 95];
   const maxGrowth = Math.max(...growthData);
 
-  const trendingTopics = analyticsData?.trendingTopics || [
+  const trendingTopics: Array<{ topic: string; heat: number }> = analyticsData?.trendingTopics || [
     { topic: "AI-Driven Content Strategy", heat: 94 },
     { topic: "Synthetic Media Ethics", heat: 87 },
     { topic: "Career Automation", heat: 76 },
@@ -71,11 +110,11 @@ export default function InsightsPage() {
               </div>
               <button
                 onClick={fetchAIInsights}
-                disabled={loadingAI}
+                disabled={loadingAI || loadingAnalytics}
                 className="flex items-center gap-2 px-5 py-3 bg-linear-to-r from-secondary to-tertiary text-white rounded-lg font-bold text-sm hover:scale-[1.02] transition-all shadow-lg shadow-secondary/20 disabled:opacity-50"
               >
                 <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                {loadingAI ? "Analyzing..." : "Generate AI Report"}
+                {loadingAnalytics ? "Loading data..." : loadingAI ? "Analyzing..." : "Generate AI Report"}
               </button>
             </header>
 
@@ -103,7 +142,7 @@ export default function InsightsPage() {
                 </div>
               </div>
               <div className="flex items-end gap-2 h-40">
-                {growthData.map((val, i) => (
+                {growthData.map((val: number, i: number) => (
                   <div key={i} className="flex-1 flex flex-col items-center gap-1">
                     <div
                       className="w-full bg-linear-to-t from-primary/40 to-primary rounded-t-sm transition-all hover:from-primary/60 hover:to-primary"
@@ -161,7 +200,7 @@ export default function InsightsPage() {
               <div className="glass-panel rounded-xl p-6">
                 <h3 className="text-lg font-bold font-headline mb-4">Trending Topics</h3>
                 <div className="space-y-3">
-                  {trendingTopics.map((t, i) => (
+                  {trendingTopics.map((t: { topic: string; heat: number }, i: number) => (
                     <div key={t.topic} className="flex items-center gap-3">
                       <span className="text-xs font-bold text-on-surface-variant w-5">{i + 1}</span>
                       <div className="flex-1">

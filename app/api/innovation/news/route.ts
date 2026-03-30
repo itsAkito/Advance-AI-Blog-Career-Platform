@@ -4,6 +4,7 @@ type NewsItem = {
   id: string;
   title: string;
   summary: string;
+  content?: string;
   url: string;
   source: string;
   sourceName: string;
@@ -12,80 +13,55 @@ type NewsItem = {
   imageUrl?: string;
 };
 
-const extractText = (xml: string, tag: string): string => {
-  const match = xml.match(new RegExp(`<${tag}[^>]*><!\\[CDATA\\[([\\s\\S]*?)\\]\\]><\\/${tag}>`, 'i'))
-    || xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i'));
-  if (!match?.[1]) return '';
-  return match[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+type NewsDataRow = {
+  article_id?: string;
+  title?: string;
+  description?: string;
+  content?: string;
+  link?: string;
+  source_id?: string;
+  source_name?: string;
+  category?: string[];
+  pubDate?: string;
+  image_url?: string;
 };
 
-const extractAttr = (xml: string, tag: string, attr: string): string => {
-  const match = xml.match(new RegExp(`<${tag}[^>]*${attr}=["']([^"']+)["']`, 'i'));
-  return match?.[1] || '';
+const normalizeNewsData = (rows: NewsDataRow[], fallbackCategory: string): NewsItem[] => {
+  return rows
+    .map((row, idx) => ({
+      id: row.article_id || row.link || `${fallbackCategory}-${idx}`,
+      title: row.title || 'Untitled',
+      summary: (row.description || '').slice(0, 280),
+      content: (row.content || row.description || '').slice(0, 6000),
+      url: row.link || '',
+      source: (row.source_id || row.source_name || 'newsdata').toLowerCase().replace(/\s/g, '-'),
+      sourceName: row.source_name || row.source_id || 'NewsData',
+      category: row.category?.[0] || fallbackCategory,
+      publishedAt: row.pubDate ? new Date(row.pubDate).toISOString() : new Date().toISOString(),
+      imageUrl: row.image_url || undefined,
+    }))
+    .filter((item) => item.title && item.url);
 };
 
-const parseRSS = (xml: string, sourceName: string, category: string): NewsItem[] => {
-  const items = Array.from(xml.matchAll(/<item>([\s\S]*?)<\/item>/g)).map((m) => m[1]);
-  return items.slice(0, 8).map((item, idx) => {
-    const title = extractText(item, 'title');
-    const link = extractText(item, 'link') || extractText(item, 'guid');
-    const description = extractText(item, 'description');
-    const pubDate = extractText(item, 'pubDate');
-    const imageUrl = extractAttr(item, 'media:thumbnail', 'url')
-      || extractAttr(item, 'media:content', 'url')
-      || extractAttr(item, 'enclosure', 'url');
+async function fetchNewsData(params: Record<string, string>): Promise<NewsItem[]> {
+  const apiKey = process.env.NEWSDATA_API_KEY;
+  if (!apiKey) return [];
 
-    return {
-      id: link || `${sourceName}-${idx}`,
-      title,
-      summary: description.slice(0, 220),
-      url: link,
-      source: sourceName.toLowerCase().replace(/\s/g, '-'),
-      sourceName,
-      category,
-      publishedAt: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-      imageUrl: imageUrl || undefined,
-    };
-  }).filter((item) => item.title && item.url);
-};
+  const search = new URLSearchParams({
+    apikey: apiKey,
+    language: 'en',
+    size: '10',
+    ...params,
+  });
 
-const RSS_SOURCES = [
-  {
-    url: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
-    name: 'BBC Technology',
-    category: 'Technology',
-  },
-  {
-    url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
-    name: 'BBC Science',
-    category: 'Science',
-  },
-  {
-    url: 'https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml',
-    name: 'NYT Technology',
-    category: 'Technology',
-  },
-  {
-    url: 'https://techcrunch.com/feed/',
-    name: 'TechCrunch',
-    category: 'Startups',
-  },
-  {
-    url: 'https://www.wired.com/feed/rss',
-    name: 'Wired',
-    category: 'Innovation',
-  },
-];
-
-async function fetchFeedSafe(source: typeof RSS_SOURCES[0]): Promise<NewsItem[]> {
+  const url = `https://newsdata.io/api/1/latest?${search.toString()}`;
   try {
-    const resp = await fetch(source.url, {
-      headers: { 'User-Agent': 'AiBlog News Aggregator/1.0' },
-      next: { revalidate: 900 }, // 15 min cache
-    });
-    if (!resp.ok) return [];
-    const xml = await resp.text();
-    return parseRSS(xml, source.name, source.category);
+    const response = await fetch(url, { next: { revalidate: 600 } });
+    if (!response.ok) return [];
+    const payload = await response.json();
+    const rows = (payload?.results || []) as NewsDataRow[];
+    const fallbackCategory = params.category || 'General';
+    return normalizeNewsData(rows, fallbackCategory);
   } catch {
     return [];
   }
@@ -93,21 +69,29 @@ async function fetchFeedSafe(source: typeof RSS_SOURCES[0]): Promise<NewsItem[]>
 
 export async function GET() {
   try {
-    const results = await Promise.allSettled(RSS_SOURCES.map(fetchFeedSafe));
-    const allNews: NewsItem[] = [];
+    const [worldNews, researchNews, geopolitics] = await Promise.all([
+      fetchNewsData({ category: 'technology,science,world' }),
+      fetchNewsData({ q: 'research OR innovation OR ai OR science', category: 'science,technology' }),
+      fetchNewsData({ q: 'geopolitics OR diplomacy OR conflict OR sanctions', category: 'politics,world' }),
+    ]);
 
-    results.forEach((r) => {
-      if (r.status === 'fulfilled') allNews.push(...r.value);
-    });
+    const sortByDate = (items: NewsItem[]) =>
+      [...items].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
-    allNews.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+    const normalizedWorld = sortByDate(worldNews).slice(0, 14);
+    const normalizedResearch = sortByDate(researchNews).slice(0, 14);
+    const normalizedGeo = sortByDate(geopolitics).slice(0, 8);
+    const items = [...normalizedResearch, ...normalizedWorld].slice(0, 25);
 
     return NextResponse.json({
       updatedAt: new Date().toISOString(),
-      items: allNews.slice(0, 25),
-      total: allNews.length,
+      items,
+      worldNews: normalizedWorld,
+      researchNews: normalizedResearch,
+      geopolitics: normalizedGeo,
+      total: items.length,
     });
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch news' }, { status: 500 });
   }
 }

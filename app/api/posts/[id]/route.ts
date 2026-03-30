@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { auth } from '@clerk/nextjs/server';
 import { getAuthUserId } from '@/lib/auth-helpers';
+import { logActivity } from '@/lib/activity-log';
 
 export async function GET(
   request: NextRequest,
@@ -153,6 +154,17 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update post.' }, { status: 500 });
     }
 
+    await logActivity({
+      userId,
+      activityType: 'post_updated',
+      entityType: 'post',
+      entityId: id,
+      metadata: {
+        updatedFields: Object.keys(updateData),
+        status: updateData.status || existingPost.status,
+      },
+    });
+
     return NextResponse.json({ message: 'Post updated successfully', post: data });
   } catch (error) {
     console.error('Update post error:', error);
@@ -189,7 +201,7 @@ export async function DELETE(
 
     const { data: existingPost, error: existingPostError } = await supabase
       .from('posts')
-      .select('author_id')
+      .select('author_id, title')
       .eq('id', id)
       .single();
 
@@ -207,6 +219,16 @@ export async function DELETE(
       console.error('Delete post error:', error);
       return NextResponse.json({ error: 'Failed to delete post.' }, { status: 500 });
     }
+
+    await logActivity({
+      userId,
+      activityType: 'post_deleted',
+      entityType: 'post',
+      entityId: id,
+      metadata: {
+        title: existingPost.title || null,
+      },
+    });
 
     return NextResponse.json({ message: 'Post deleted successfully' });
   } catch (error) {
